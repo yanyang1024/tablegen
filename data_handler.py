@@ -40,6 +40,26 @@ def generate_intermediate_result(text1: str, text2: str, text3: str, text4: str,
     return df_mid
 
 
+def process_intermediate_to_final(df_mid: pd.DataFrame, mid_param: str, df_template: pd.DataFrame, rows: int, cols: int) -> pd.DataFrame:
+    """
+    占位示例：根据中间结果与一个参数生成最终表格。
+    - 简单逻辑：将 df_mid 的 token 列追加 mid_param 后，顺序填入模板（非首行首列），不足部分留占位符。
+    """
+    df_template = _coerce_non_header_columns_to_string(df_template)
+    tokens = []
+    if "token" in df_mid.columns:
+        tokens = [str(t) + f"-{mid_param}" for t in df_mid["token"].astype(str).tolist()]
+    
+    filled = df_template.copy()
+    idx = 0
+    for r in range(1, min(rows, len(filled))):
+        for c in range(1, min(cols, len(filled.columns))):
+            value = tokens[idx] if idx < len(tokens) else cfg.placeholder
+            filled.iloc[r, c] = value
+            idx += 1
+    return _coerce_non_header_columns_to_string(filled)
+
+
 def fill_table(df: pd.DataFrame, text1: str, text2: str, rows: int = None, cols: int = None) -> pd.DataFrame:
     """
     智能填充逻辑：

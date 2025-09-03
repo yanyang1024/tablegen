@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 from config import Config
-from data_handler import fill_table, create_template_from_upload, make_blank_template, generate_intermediate_result
+from data_handler import fill_table, create_template_from_upload, make_blank_template, generate_intermediate_result, process_intermediate_to_final
 
 cfg = Config()
 st.set_page_config(page_title="数据表格填充 Demo", layout="centered")
 
 st.title("1. 数据表格填充 Demo")
-st.markdown("输入文本 → 生成中间结果表格与最终填充表格 → 下载结果")
+st.markdown("先生成中间结果 → 再输入参数生成最终表格 → 下载结果")
 
 # 初始化session_state
 if "template_df" not in st.session_state:
@@ -17,6 +17,10 @@ if "template_rows" not in st.session_state:
     st.session_state.template_rows = cfg.rows
 if "template_cols" not in st.session_state:
     st.session_state.template_cols = cfg.cols
+if "mid_result" not in st.session_state:
+    st.session_state.mid_result = None
+if "result" not in st.session_state:
+    st.session_state.result = None
 
 # 侧边栏参数
 with st.sidebar:
@@ -81,17 +85,15 @@ text3 = st.text_area("文本块 3", cfg.default_text3, height=60)
 text4 = st.text_area("文本块 4", cfg.default_text4, height=60)
 text5 = st.text_area("文本块 5", cfg.default_text5, height=60)
 
-if st.button("4. 生成中间结果与最终结果"):
-    # 中间结果（自适应表格维度）
+# 步骤一：生成中间结果
+if st.button("4. 生成中间结果"):
     mid_df = generate_intermediate_result(text1, text2, text3, text4, text5)
     st.session_state["mid_result"] = mid_df
-    
-    # 最终结果（基于模板填充：示例仍使用 text1, text2）
-    df_result = fill_table(df_blank, text1, text2, current_rows, current_cols)
-    st.session_state["result"] = df_result
+    # 清空上一次最终结果，避免误导
+    st.session_state["result"] = None
 
 # 展示中间结果
-if "mid_result" in st.session_state:
+if st.session_state.get("mid_result") is not None:
     st.subheader("5. 中间结果预览")
     st.dataframe(st.session_state["mid_result"])
     csv_mid = st.session_state["mid_result"].to_csv(index=False).encode("utf-8")
@@ -102,9 +104,24 @@ if "mid_result" in st.session_state:
         mime="text/csv",
     )
 
+    # 中间阶段的额外输入
+    st.subheader("5.1 中间阶段参数输入")
+    mid_param = st.text_input("中间阶段参数", cfg.default_mid_param, key="mid_param_input")
+
+    # 步骤二：基于中间结果与参数生成最终表格
+    if st.button("6. 生成最终结果"):
+        df_result = process_intermediate_to_final(
+            st.session_state["mid_result"],
+            mid_param,
+            df_blank,
+            current_rows,
+            current_cols,
+        )
+        st.session_state["result"] = df_result
+
 # 展示最终结果
-if "result" in st.session_state:
-    st.subheader("6. 最终结果预览")
+if st.session_state.get("result") is not None:
+    st.subheader("7. 最终结果预览")
     st.dataframe(st.session_state["result"])
 
     csv = st.session_state["result"].to_csv(index=False).encode("utf-8")
