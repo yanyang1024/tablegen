@@ -16,6 +16,30 @@ def _coerce_non_header_columns_to_string(df: pd.DataFrame) -> pd.DataFrame:
     return df_str
 
 
+def generate_intermediate_result(text1: str, text2: str, text3: str, text4: str, text5: str) -> pd.DataFrame:
+    """
+    生成中间结果 Demo：
+    - 将 5 段文本拆分为若干 token（以空白分隔）
+    - 汇总为一个长表，包含来源列、序号列、token 列
+    - 行列数自适应，无需固定
+    """
+    records = []
+    inputs = [("text1", text1), ("text2", text2), ("text3", text3), ("text4", text4), ("text5", text5)]
+    for name, content in inputs:
+        tokens = [t for t in str(content).split() if t]
+        for idx, token in enumerate(tokens):
+            records.append({
+                "source": name,
+                "index": idx,
+                "token": token,
+            })
+    df_mid = pd.DataFrame(records)
+    # 统一为 string 便于展示
+    for col in df_mid.columns:
+        df_mid[col] = df_mid[col].astype("string")
+    return df_mid
+
+
 def fill_table(df: pd.DataFrame, text1: str, text2: str, rows: int = None, cols: int = None) -> pd.DataFrame:
     """
     智能填充逻辑：

@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 from config import Config
-from data_handler import fill_table, create_template_from_upload, make_blank_template
+from data_handler import fill_table, create_template_from_upload, make_blank_template, generate_intermediate_result
 
 cfg = Config()
 st.set_page_config(page_title="数据表格填充 Demo", layout="centered")
 
 st.title("1. 数据表格填充 Demo")
-st.markdown("输入两段文本 → 生成填充后的表格 → 下载结果")
+st.markdown("输入文本 → 生成中间结果表格与最终填充表格 → 下载结果")
 
 # 初始化session_state
 if "template_df" not in st.session_state:
@@ -74,22 +74,42 @@ else:
     current_cols = st.session_state.template_cols
     df_blank = make_blank_template(current_rows, current_cols, cfg.placeholder)
 
-st.subheader("3. 输入两段文本")
+st.subheader("3. 输入五段文本")
 text1 = st.text_area("文本块 1", cfg.default_text1, height=60)
 text2 = st.text_area("文本块 2", cfg.default_text2, height=60)
+text3 = st.text_area("文本块 3", cfg.default_text3, height=60)
+text4 = st.text_area("文本块 4", cfg.default_text4, height=60)
+text5 = st.text_area("文本块 5", cfg.default_text5, height=60)
 
-if st.button("4. 填充并预览"):
-    # 传递当前的行列数参数
+if st.button("4. 生成中间结果与最终结果"):
+    # 中间结果（自适应表格维度）
+    mid_df = generate_intermediate_result(text1, text2, text3, text4, text5)
+    st.session_state["mid_result"] = mid_df
+    
+    # 最终结果（基于模板填充：示例仍使用 text1, text2）
     df_result = fill_table(df_blank, text1, text2, current_rows, current_cols)
     st.session_state["result"] = df_result
 
+# 展示中间结果
+if "mid_result" in st.session_state:
+    st.subheader("5. 中间结果预览")
+    st.dataframe(st.session_state["mid_result"])
+    csv_mid = st.session_state["mid_result"].to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="下载中间结果 CSV",
+        data=csv_mid,
+        file_name="intermediate_result.csv",
+        mime="text/csv",
+    )
+
+# 展示最终结果
 if "result" in st.session_state:
-    st.subheader("5. 结果预览")
+    st.subheader("6. 最终结果预览")
     st.dataframe(st.session_state["result"])
 
     csv = st.session_state["result"].to_csv(index=False).encode("utf-8")
     st.download_button(
-        label="6. 下载 CSV",
+        label="下载最终结果 CSV",
         data=csv,
         file_name="filled_table.csv",
         mime="text/csv",

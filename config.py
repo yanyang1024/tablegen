@@ -5,6 +5,9 @@ class Config:
     # 输入框默认值
     default_text1: str = "hello"
     default_text2: str = "world"
+    default_text3: str = "foo"
+    default_text4: str = "bar"
+    default_text5: str = "baz"
     # 表格尺寸
     rows: int = 5
     cols: int = 4
