@@ -18,7 +18,7 @@ def _coerce_non_header_columns_to_string(df: pd.DataFrame) -> pd.DataFrame:
 
 def generate_intermediate_result(text1: str, text2: str, text3: str, text4: str, text5: str) -> pd.DataFrame:
     """
-    生成阶段性结果 Demo：
+    生成中间结果 Demo：
     - 将 5 段文本拆分为若干 token（以空白分隔）
     - 汇总为一个长表，包含来源列、序号列、token 列
     - 行列数自适应，无需固定
@@ -40,95 +40,23 @@ def generate_intermediate_result(text1: str, text2: str, text3: str, text4: str,
     return df_mid
 
 
-def generate_adaptive_table_by_option(df_stage: pd.DataFrame, selected_option: str) -> pd.DataFrame:
+def process_intermediate_to_final(df_mid: pd.DataFrame, mid_param: str, df_template: pd.DataFrame, rows: int, cols: int) -> pd.DataFrame:
     """
-    基于阶段性结果和下拉框选项生成自适应表格
-    - 根据选项不同，生成不同形状和内容的表格
-    - 表格尺寸自适应，无需固定行列
-    """
-    # 获取阶段性结果中的token数据
-    tokens = []
-    if "token" in df_stage.columns:
-        tokens = df_stage["token"].astype(str).tolist()
-    
-    # 根据选项生成不同的表格结构
-    if selected_option == "选项A":
-        # 选项A：生成2列表格，按奇偶分组
-        data = []
-        for i, token in enumerate(tokens):
-            data.append({
-                "奇数组": token if i % 2 == 0 else "",
-                "偶数组": token if i % 2 == 1 else ""
-            })
-        df_adaptive = pd.DataFrame(data)
-        
-    elif selected_option == "选项B":
-        # 选项B：生成3列表格，按模3分组
-        data = []
-        for i, token in enumerate(tokens):
-            row = {"组1": "", "组2": "", "组3": ""}
-            if i % 3 == 0:
-                row["组1"] = token
-            elif i % 3 == 1:
-                row["组2"] = token
-            else:
-                row["组3"] = token
-            data.append(row)
-        df_adaptive = pd.DataFrame(data)
-        
-    elif selected_option == "选项C":
-        # 选项C：生成统计表格
-        if tokens:
-            unique_tokens = list(set(tokens))
-            data = []
-            for token in unique_tokens:
-                count = tokens.count(token)
-                data.append({
-                    "token": token,
-                    "count": count,
-                    "percentage": f"{count/len(tokens)*100:.1f}%"
-                })
-            df_adaptive = pd.DataFrame(data)
-        else:
-            df_adaptive = pd.DataFrame(columns=["token", "count", "percentage"])
-            
-    else:  # 选项D 或其他
-        # 选项D：生成单列排序表格
-        sorted_tokens = sorted(tokens) if tokens else []
-        df_adaptive = pd.DataFrame({"sorted_tokens": sorted_tokens})
-    
-    # 统一为 string 类型
-    for col in df_adaptive.columns:
-        df_adaptive[col] = df_adaptive[col].astype("string")
-    
-    return df_adaptive
-
-
-def process_to_final_result(df_stage: pd.DataFrame, df_adaptive: pd.DataFrame, final_param: str, df_template: pd.DataFrame, rows: int, cols: int) -> pd.DataFrame:
-    """
-    基于阶段性结果、自适应表格和最终参数生成最终结果表格
+    占位示例：根据中间结果与一个参数生成最终表格。
+    - 简单逻辑：将 df_mid 的 token 列追加 mid_param 后，顺序填入模板（非首行首列），不足部分留占位符。
     """
     df_template = _coerce_non_header_columns_to_string(df_template)
+    tokens = []
+    if "token" in df_mid.columns:
+        tokens = [str(t) + f"-{mid_param}" for t in df_mid["token"].astype(str).tolist()]
     
-    # 合并两个表格的数据
-    stage_tokens = df_stage["token"].astype(str).tolist() if "token" in df_stage.columns else []
-    adaptive_data = []
-    for col in df_adaptive.columns:
-        adaptive_data.extend(df_adaptive[col].astype(str).tolist())
-    
-    # 合并所有数据并添加最终参数
-    all_data = stage_tokens + adaptive_data
-    processed_data = [f"{item}-{final_param}" for item in all_data if item and item != "nan"]
-    
-    # 填充到模板中
     filled = df_template.copy()
     idx = 0
     for r in range(1, min(rows, len(filled))):
         for c in range(1, min(cols, len(filled.columns))):
-            value = processed_data[idx] if idx < len(processed_data) else cfg.placeholder
+            value = tokens[idx] if idx < len(tokens) else cfg.placeholder
             filled.iloc[r, c] = value
             idx += 1
-    
     return _coerce_non_header_columns_to_string(filled)
 
 
@@ -162,6 +90,7 @@ def fill_table(df: pd.DataFrame, text1: str, text2: str, rows: int = None, cols:
     df_filled = _coerce_non_header_columns_to_string(df_filled)
     return df_filled
 
+# 新增：根据行列数生成空白模板（首行首列保留，其他用占位符）
 
 def make_blank_template(rows: int, cols: int, placeholder: Optional[str] = None) -> pd.DataFrame:
     ph = placeholder if placeholder is not None else cfg.placeholder
@@ -206,4 +135,4 @@ def create_template_from_upload(uploaded_file) -> Tuple[pd.DataFrame, int, int, 
         return template_df, rows, cols, None
         
     except Exception as e:
-        return None, 0, 0, str(e)
+        return None, 0, 0, str(e) 

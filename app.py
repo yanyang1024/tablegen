@@ -2,13 +2,20 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 from config import Config
-from data_handler import fill_table, create_template_from_upload, make_blank_template, generate_intermediate_result, process_intermediate_to_final
+from data_handler import (
+    fill_table, 
+    create_template_from_upload, 
+    make_blank_template, 
+    generate_intermediate_result, 
+    generate_adaptive_table_by_option,
+    process_to_final_result
+)
 
 cfg = Config()
 st.set_page_config(page_title="数据表格填充 Demo", layout="centered")
 
 st.title("1. 数据表格填充 Demo")
-st.markdown("先生成中间结果 → 再输入参数生成最终表格 → 下载结果")
+st.markdown("输入文本 → 生成阶段性结果 → 选择选项 → 生成自适应表格 → 输入最终参数 → 生成最终结果")
 
 # 初始化session_state
 if "template_df" not in st.session_state:
@@ -17,10 +24,12 @@ if "template_rows" not in st.session_state:
     st.session_state.template_rows = cfg.rows
 if "template_cols" not in st.session_state:
     st.session_state.template_cols = cfg.cols
-if "mid_result" not in st.session_state:
-    st.session_state.mid_result = None
-if "result" not in st.session_state:
-    st.session_state.result = None
+if "stage_result" not in st.session_state:
+    st.session_state.stage_result = None
+if "adaptive_result" not in st.session_state:
+    st.session_state.adaptive_result = None
+if "final_result" not in st.session_state:
+    st.session_state.final_result = None
 
 # 侧边栏参数
 with st.sidebar:
@@ -85,49 +94,95 @@ text3 = st.text_area("文本块 3", cfg.default_text3, height=60)
 text4 = st.text_area("文本块 4", cfg.default_text4, height=60)
 text5 = st.text_area("文本块 5", cfg.default_text5, height=60)
 
-# 步骤一：生成中间结果
-if st.button("4. 生成中间结果"):
-    mid_df = generate_intermediate_result(text1, text2, text3, text4, text5)
-    st.session_state["mid_result"] = mid_df
-    # 清空上一次最终结果，避免误导
-    st.session_state["result"] = None
+# 步骤一：生成阶段性结果
+if st.button("4. 生成阶段性结果"):
+    stage_df = generate_intermediate_result(text1, text2, text3, text4, text5)
+    st.session_state["stage_result"] = stage_df
+    # 清空后续结果，避免误导
+    st.session_state["adaptive_result"] = None
+    st.session_state["final_result"] = None
 
-# 展示中间结果
-if st.session_state.get("mid_result") is not None:
-    st.subheader("5. 中间结果预览")
-    st.dataframe(st.session_state["mid_result"])
-    csv_mid = st.session_state["mid_result"].to_csv(index=False).encode("utf-8")
+# 展示阶段性结果
+if st.session_state.get("stage_result") is not None:
+    st.subheader("5. 阶段性结果预览")
+    st.dataframe(st.session_state["stage_result"])
+    csv_stage = st.session_state["stage_result"].to_csv(index=False).encode("utf-8")
     st.download_button(
-        label="下载中间结果 CSV",
-        data=csv_mid,
-        file_name="intermediate_result.csv",
+        label="下载阶段性结果 CSV",
+        data=csv_stage,
+        file_name="stage_result.csv",
         mime="text/csv",
     )
 
-    # 中间阶段的额外输入
-    st.subheader("5.1 中间阶段参数输入")
-    mid_param = st.text_input("中间阶段参数", cfg.default_mid_param, key="mid_param_input")
+    # 步骤二：下拉框选择
+    st.subheader("6. 选择处理选项")
+    selected_option = st.selectbox(
+        "请选择处理方式",
+        cfg.dropdown_options,
+        key="option_selector"
+    )
+    
+    # 步骤三：生成自适应表格
+    if st.button("7. 生成自适应表格"):
+        adaptive_df = generate_adaptive_table_by_option(
+            st.session_state["stage_result"], 
+            selected_option
+        )
+        st.session_state["adaptive_result"] = adaptive_df
+        # 清空最终结果
+        st.session_state["final_result"] = None
 
-    # 步骤二：基于中间结果与参数生成最终表格
-    if st.button("6. 生成最终结果"):
-        df_result = process_intermediate_to_final(
-            st.session_state["mid_result"],
-            mid_param,
+# 同时展示阶段性结果和自适应表格（如果都存在）
+if (st.session_state.get("stage_result") is not None and 
+    st.session_state.get("adaptive_result") is not None):
+    
+    st.subheader("8. 结果对比分析")
+    
+    # 使用两列布局同时展示两个表格
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**阶段性结果**")
+        st.dataframe(st.session_state["stage_result"])
+    
+    with col2:
+        st.write("**自适应表格**")
+        st.dataframe(st.session_state["adaptive_result"])
+    
+    # 下载按钮
+    csv_adaptive = st.session_state["adaptive_result"].to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="下载自适应表格 CSV",
+        data=csv_adaptive,
+        file_name="adaptive_table.csv",
+        mime="text/csv",
+    )
+
+    # 步骤四：最终参数输入
+    st.subheader("9. 最终阶段参数输入")
+    final_param = st.text_input("最终阶段参数", cfg.default_final_param, key="final_param_input")
+
+    # 步骤五：生成最终结果
+    if st.button("10. 生成最终结果"):
+        final_df = process_to_final_result(
+            st.session_state["stage_result"],
+            st.session_state["adaptive_result"],
+            final_param,
             df_blank,
             current_rows,
             current_cols,
         )
-        st.session_state["result"] = df_result
+        st.session_state["final_result"] = final_df
 
 # 展示最终结果
-if st.session_state.get("result") is not None:
-    st.subheader("7. 最终结果预览")
-    st.dataframe(st.session_state["result"])
+if st.session_state.get("final_result") is not None:
+    st.subheader("11. 最终结果预览")
+    st.dataframe(st.session_state["final_result"])
 
-    csv = st.session_state["result"].to_csv(index=False).encode("utf-8")
+    csv_final = st.session_state["final_result"].to_csv(index=False).encode("utf-8")
     st.download_button(
         label="下载最终结果 CSV",
-        data=csv,
-        file_name="filled_table.csv",
+        data=csv_final,
+        file_name="final_result.csv",
         mime="text/csv",
-    ) 
+    )
